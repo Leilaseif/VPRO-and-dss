@@ -4,36 +4,38 @@ import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
+# Download VADER lexicon (important)
+nltk.download('vader_lexicon')
+
 # Set up Google Sheets API
 scope = ["https://spreadsheets.google.com/feeds", 'https://www.googleapis.com/auth/drive']
 creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
 client = gspread.authorize(creds)
 
-# Open the Google Sheet by name
+# Open the Google Sheet
 spreadsheet = client.open("VPRO_YouTube_Comments")
 sheet = spreadsheet.sheet1
 
-# Fetch all the comments from the sheet
-comments = sheet.col_values(3)  # Assuming column 3 contains the comments
+# Fetch comments from column C (assuming comments are in column 3)
+comments = sheet.col_values(3)[1:]  # Skip header row
 
-# Set up the Sentiment Intensity Analyzer
+# Set up Sentiment Analyzer
 sia = SentimentIntensityAnalyzer()
 
-# Analyze sentiment of each comment
+# Analyze sentiment for each comment
 sentiments = []
 for comment in comments:
-    score = sia.polarity_scores(comment)['compound']  # Compound score is a good overall sentiment score
+    score = sia.polarity_scores(comment)['compound']
     if score >= 0.05:
-        sentiment = 'Sad'  # Positive sentiment
+        sentiment = 'Positive'  # Positive sentiment
     elif score <= -0.05:
-        sentiment = 'Happy'    # Negative sentiment
+        sentiment = 'Negative'    # Negative sentiment
     else:
-        sentiment = 'Neutral'  # Neutral sentiment
+        sentiment = 'Neutral'
     sentiments.append(sentiment)
 
-# Add sentiment column to your existing Google Sheet data
-comments_with_sentiments = sheet.get_all_records()  # This will get all data from the sheet
+# Batch update Sentiment column (D)
+sentiment_column = [['Sentiment']] + [[s] for s in sentiments]  # Add header + values
+sheet.update(f"H1:H{len(sentiments) + 1}", sentiment_column)  # Update all at once
 
-# Update the sheet with the sentiment values in a new column
-for i, sentiment in enumerate(sentiments, start=2):  # Assuming the first row is headers
-    sheet.update_cell(i, 4, sentiment)  # Update the 4th column (sentiment column)
+print("✅ Sentiment analysis updated successfully!")
